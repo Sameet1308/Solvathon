@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.impute import SimpleImputer
 import matplotlib.pyplot as plt
+import xgboost as xgb  # Import XGBoost
 
 # Load your cleaned dataset
 data = pd.read_csv('Crude.csv')
@@ -17,35 +17,33 @@ imputer = SimpleImputer(strategy='median')
 X_train_imputed = imputer.fit_transform(train_data.drop(columns=['Crude_Oil_Demand_1000bpd']))
 y_train = train_data['Crude_Oil_Demand_1000bpd']
 
-# 4. Model Selection and Training
-rf = RandomForestRegressor()
+# Model Selection and Training (Using XGBoost)
+xgb_reg = xgb.XGBRegressor()
 
-# 5. Model Training
+# Define hyperparameters for grid search
 param_grid = {
     'n_estimators': [100, 200, 300],
-    'max_depth': [None, 10, 20, 30],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4]
+    'max_depth': [3, 4, 5],
+    'learning_rate': [0.01, 0.1, 0.2],
 }
 
-grid_search = GridSearchCV(rf, param_grid, cv=5, scoring='neg_mean_squared_error')
+grid_search = GridSearchCV(xgb_reg, param_grid, cv=5, scoring='neg_mean_squared_error')
 grid_search.fit(X_train_imputed, y_train)
 
-best_rf = grid_search.best_estimator_
-best_rf.fit(X_train_imputed, y_train)
+best_xgb = grid_search.best_estimator_
+best_xgb.fit(X_train_imputed, y_train)
 
-# 6. Prepare Future Years Data for Predictions (2023 to 2025)
+# Prepare Future Years Data for Predictions (2023 to 2025)
 future_years = list(range(2020, 2026))  # Define the future years for prediction
 X_future = pd.DataFrame({'Year': future_years})
 
 # Ensure that your input features for the future years are complete and do not contain missing values
-# For example, if you have columns 'Feature1' and 'Feature2', make sure they have values for future years.
 
-# 7. Predict Crude Oil Demand for Future Years (2023 to 2025)
+# Predict Crude Oil Demand for Future Years (2023 to 2025)
 X_future_imputed = imputer.transform(predict_data.drop(columns=['Crude_Oil_Demand_1000bpd']))
-future_predictions = best_rf.predict(X_future_imputed)
+future_predictions = best_xgb.predict(X_future_imputed)
 
-# 9. Visualization of Predictions
+# Visualization of Predictions
 predictions_df = pd.DataFrame({'Year': future_years, 'Predicted_Crude_Oil_Demand_1000bpd': future_predictions})
 
 # Create a new DataFrame for the Excel export with Year, Actual, and Predicted columns
@@ -62,7 +60,7 @@ plt.title('Crude Oil Demand Prediction (2020 to 2025)')
 plt.legend()
 plt.grid(True)
 
-# 10. Save predictions to a CSV file and export data to Excel
+# Save predictions to a CSV file and export data to Excel
 export_df.to_csv('Crude_Oil_Demand_Predictions.csv', index=False)
 
 # Export data to Excel with Year, Actual, and Predicted columns in the same sheet
