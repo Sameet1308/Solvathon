@@ -56,7 +56,7 @@ fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
 
 # Plot 1: Feature Importance
 ax1 = axes[0]
-ax1.barh(feature_importance_df['Feature'], feature_importance_df['Importance'], color='skyblue')
+ax1.barh(feature_importance_df['Feature'], feature_importance_df['Importance'], color='#6DFDD2')
 ax1.set_xlabel('Feature Importance')
 ax1.set_ylabel('Feature')
 ax1.set_title('Feature Importance Analysis')
@@ -70,8 +70,8 @@ export_df['Predicted'] = future_predictions
 
 # Plot 2: Crude Oil Demand Predictions
 ax2 = axes[1]
-ax2.plot(export_df['Year'], export_df['Predicted'], label='Predicted', marker='o', linestyle='--', color='denim')
-ax2.plot(export_df['Year'], export_df['Actual'], label='Actual', marker='x', color='aqua')
+ax2.plot(export_df['Year'], export_df['Predicted'], label='Predicted', marker='o', linestyle='--', color='#142459')
+ax2.plot(export_df['Year'], export_df['Actual'], label='Actual', marker='x', color='#1AC9E6')
 ax2.set_xlabel('Year')
 ax2.set_ylabel('Crude Oil Demand (1000bpd)')
 ax2.set_title('Crude Oil Demand Prediction (2020 to 2025)')
