@@ -48,16 +48,24 @@ future_predictions = best_rf.predict(X_future_imputed)
 # 9. Visualization of Predictions
 predictions_df = pd.DataFrame({'Year': future_years, 'Predicted_Crude_Oil_Demand_1000bpd': future_predictions})
 
+# Create a new DataFrame for the Excel export with Year, Actual, and Predicted columns
+export_df = pd.DataFrame({'Year': future_years})
+export_df['Actual'] = predict_data['Crude_Oil_Demand_1000bpd'].values
+export_df['Predicted'] = future_predictions
+
 plt.figure(figsize=(10, 6))
-plt.plot(predictions_df['Year'], predictions_df['Predicted_Crude_Oil_Demand_1000bpd'], label='Predicted', marker='o')
-plt.plot(predict_data['Year'], predict_data['Crude_Oil_Demand_1000bpd'], label='Actual', marker='x')
+plt.plot(export_df['Year'], export_df['Predicted'], label='Predicted', marker='o')
+plt.plot(export_df['Year'], export_df['Actual'], label='Actual', marker='x')
 plt.xlabel('Year')
 plt.ylabel('Crude Oil Demand (1000bpd)')
 plt.title('Crude Oil Demand Prediction (2020 to 2025)')
 plt.legend()
 plt.grid(True)
 
-# 10. Save predictions to a CSV file
-predictions_df.to_csv('Crude_Oil_Demand_Predictions.csv', index=False)
+# 10. Save predictions to a CSV file and export data to Excel
+export_df.to_csv('Crude_Oil_Demand_Predictions.csv', index=False)
+
+# Export data to Excel with Year, Actual, and Predicted columns in the same sheet
+export_df.to_excel('Crude_Oil_Demand_Predictions.xlsx', index=False)
 
 plt.show()
