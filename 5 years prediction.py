@@ -1,37 +1,26 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, TimeSeriesSplit
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GridSearchCV
 from sklearn.impute import SimpleImputer
-from sklearn.feature_selection import RFE
 import matplotlib.pyplot as plt
 
 # Load your cleaned dataset
 data = pd.read_csv('Crude.csv')
 
-# Handle 'Consumer_Preferences' column
-mode_preference = data['Consumer_Preferences'].mode().iloc[0]
-data['Consumer_Preferences'] = data['Consumer_Preferences'].replace('oil', mode_preference)
+# Split data into training (till 2020) and prediction (2023 to 2025) sets
+train_data = data[data['Year'].between(2010, 2022)]
+predict_data = data[data['Year'] >= 2020]
 
-# One-Hot Encode 'Consumer_Preferences'
-data = pd.get_dummies(data, columns=['Consumer_Preferences'], prefix='Preference', drop_first=True)
-
-# Handle missing values using SimpleImputer
-imputer = SimpleImputer(strategy='mean')
-X_imputed = imputer.fit_transform(data.drop(columns=['Crude_Oil_Demand_1000bpd']))
-data_imputed = pd.DataFrame(X_imputed, columns=data.drop(columns=['Crude_Oil_Demand_1000bpd']).columns)
-
-# 3. Train-Test Split
-X = data_imputed
-y = data['Crude_Oil_Demand_1000bpd']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Handle missing values using SimpleImputer for input features
+imputer = SimpleImputer(strategy='median')
+X_train_imputed = imputer.fit_transform(train_data.drop(columns=['Crude_Oil_Demand_1000bpd']))
+y_train = train_data['Crude_Oil_Demand_1000bpd']
 
 # 4. Model Selection and Training
 rf = RandomForestRegressor()
 
-# 5. Model Training and Evaluation with Cross-Validation
+# 5. Model Training
 param_grid = {
     'n_estimators': [100, 200, 300],
     'max_depth': [None, 10, 20, 30],
@@ -39,45 +28,28 @@ param_grid = {
     'min_samples_leaf': [1, 2, 4]
 }
 
-tscv = TimeSeriesSplit(n_splits=5)
-grid_search = GridSearchCV(rf, param_grid, cv=tscv, scoring='neg_mean_squared_error')
-grid_search.fit(X_train, y_train)
+grid_search = GridSearchCV(rf, param_grid, cv=5, scoring='neg_mean_squared_error')
+grid_search.fit(X_train_imputed, y_train)
 
 best_rf = grid_search.best_estimator_
-best_rf.fit(X_train, y_train)
+best_rf.fit(X_train_imputed, y_train)
 
-# 6. Automatic Leading Indicator Identification using RFE
-# You can change the number of features to select based on your requirements
-num_features_to_select = 5
-rfe = RFE(estimator=best_rf, n_features_to_select=num_features_to_select)
-rfe.fit(X_train, y_train)
-selected_features = X_train.columns[rfe.support_]
+# 6. Prepare Future Years Data for Predictions (2023 to 2025)
+future_years = list(range(2020, 2026))  # Define the future years for prediction
+X_future = pd.DataFrame({'Year': future_years})
 
-print("Selected Leading Indicators:")
-print(selected_features)
+# Ensure that your input features for the future years are complete and do not contain missing values
+# For example, if you have columns 'Feature1' and 'Feature2', make sure they have values for future years.
 
-# 7. Predict Leading Indicators for Years 2023 to 2027
-years = list(range(2023, 2028))  # Generate years from 2023 to 2027
-X_future = pd.DataFrame({'Year': years})  # Create a DataFrame with the generated years
+# 7. Predict Crude Oil Demand for Future Years (2023 to 2025)
+X_future_imputed = imputer.transform(predict_data.drop(columns=['Crude_Oil_Demand_1000bpd']))
+future_predictions = best_rf.predict(X_future_imputed)
 
-# Predict leading indicators for the next 5 years (replace with your own prediction method)
-for feature in selected_features:
-    # Assuming 'PredictLeadingIndicator' is your function to predict indicators
-    X_future[f'Predicted_{feature}'] = PredictLeadingIndicator(X, feature)
-
-# 8. Predict Global Crude Oil Demand for the Next 5 Years
-# Combine historical values and predicted leading indicators
-X_combined = pd.concat([X, X_future[selected_features]], axis=1)
-
-# Predict global crude oil demand for the next 5 years
-y_future = best_rf.predict(X_combined)
-
-# Create a DataFrame to store the predictions
-predictions_df = pd.DataFrame({'Year': years, 'Predicted_Crude_Oil_Demand_1000bpd': y_future})
+# 8. Create DataFrame for Predictions
+predictions_df = pd.DataFrame({'Year': future_years, 'Predicted_Crude_Oil_Demand_1000bpd': future_predictions})
 
 # 9. Visualization of Predictions
 plt.figure(figsize=(10, 6))
-plt.plot(data['Year'], data['Crude_Oil_Demand_1000bpd'], label='Actual Data', marker='o')
 plt.plot(predictions_df['Year'], predictions_df['Predicted_Crude_Oil_Demand_1000bpd'], label='Predictions', marker='o')
 plt.xlabel('Year')
 plt.ylabel('Crude Oil Demand (1000bpd)')
