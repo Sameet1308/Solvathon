@@ -10,7 +10,7 @@ data = pd.read_csv('Crude.csv')
 
 # Split data into training (till 2020) and prediction (2023 to 2025) sets
 train_data = data[data['Year'].between(2010, 2022)]
-predict_data = data[data['Year'] >= 2020]
+predict_data = data[data['Year'].between(2020, 2025)]  # Updated for 2020 to 2025
 
 # Handle missing values using SimpleImputer for input features
 imputer = SimpleImputer(strategy='median')
@@ -45,18 +45,19 @@ X_future = pd.DataFrame({'Year': future_years})
 X_future_imputed = imputer.transform(predict_data.drop(columns=['Crude_Oil_Demand_1000bpd']))
 future_predictions = best_rf.predict(X_future_imputed)
 
-# 8. Create DataFrame for Predictions
+# 9. Visualization of Predictions
 predictions_df = pd.DataFrame({'Year': future_years, 'Predicted_Crude_Oil_Demand_1000bpd': future_predictions})
 
-# 9. Visualization of Predictions
 plt.figure(figsize=(10, 6))
-plt.plot(predictions_df['Year'], predictions_df['Predicted_Crude_Oil_Demand_1000bpd'], label='Predictions', marker='o')
+plt.plot(predictions_df['Year'], predictions_df['Predicted_Crude_Oil_Demand_1000bpd'], label='Predicted', marker='o')
+plt.plot(predict_data['Year'], predict_data['Crude_Oil_Demand_1000bpd'], label='Actual', marker='x')
 plt.xlabel('Year')
 plt.ylabel('Crude Oil Demand (1000bpd)')
-plt.title('Crude Oil Demand Prediction')
+plt.title('Crude Oil Demand Prediction (2020 to 2025)')
 plt.legend()
 plt.grid(True)
-plt.show()
 
 # 10. Save predictions to a CSV file
 predictions_df.to_csv('Crude_Oil_Demand_Predictions.csv', index=False)
+
+plt.show()
