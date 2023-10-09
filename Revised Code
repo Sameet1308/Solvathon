@@ -2,21 +2,22 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import matplotlib.pyplot as plt
-import warnings  # Import the warnings module
+import warnings
 
-# Suppress FutureWarnings and DeprecationWarnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# Load your cleaned dataset (data from 2010 to 2022)
+# Load your cleaned dataset
 data = pd.read_csv('crude.csv')
 
 # Filter data for years 2020 to 2025 (future years)
 future_years = [2020, 2021, 2022, 2023, 2024, 2025]
-predict_data = data[data['Year'].isin(future_years)]
 
-# Filter data for training (years 2010 to 2021)
-train_data = data[(data['Year'] >= 2010) & (data['Year'] <= 2021)]
+# Use .loc to filter rows and columns explicitly
+predict_data = data.loc[data['Year'].isin(future_years), :]
+
+# Use .loc to filter rows and columns explicitly
+train_data = data.loc[(data['Year'] >= 2010) & (data['Year'] <= 2021), :]
 
 # Separate the features (X) and target (y) for training
 X_train = train_data.drop(columns=['Crude_Oil_Demand_1000bpd'])
