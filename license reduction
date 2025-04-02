@@ -1,0 +1,55 @@
+import pandas as pd
+from itertools import combinations
+from collections import defaultdict
+
+# === STEP 1: Load and clean Excel file ===
+# Replace this with your actual Excel filename
+excel_file = "your_file.xlsx"
+
+# Load only the required columns (case-insensitive match)
+df = pd.read_excel(excel_file, usecols=lambda x: x.strip().lower() in ['user', 'application name'])
+
+# Rename columns for consistency
+df.columns = ['User', 'Application']
+
+# Drop duplicates: one entry per (User, Application)
+df = df.drop_duplicates(subset=['User', 'Application'])
+
+# === STEP 2: Group each user to the set of apps they use ===
+user_app_sets = df.groupby('User')['Application'].apply(lambda x: frozenset(x)).reset_index()
+user_app_sets['App_Set'] = user_app_sets['Application']
+user_app_sets = user_app_sets.drop(columns=['Application'])
+
+# === STEP 3: Count how many users use each exact app set ===
+app_set_counts = user_app_sets.groupby('App_Set').size().reset_index(name='User_Count')
+
+# === STEP 4: Evaluate combinations of 1 to 5 apps and their user coverage ===
+combo_user_coverage = defaultdict(int)
+
+# Get all unique apps
+all_apps = set(app for apps in app_set_counts['App_Set'] for app in apps)
+
+# Generate combinations of apps (size 1 to 5)
+for r in range(1, 6):
+    for app_combo in combinations(all_apps, r):
+        combo_set = frozenset(app_combo)
+
+        # Find all app sets that are subsets of this combination
+        matched_users = app_set_counts[app_set_counts['App_Set'].apply(lambda x: x.issubset(combo_set))]
+        user_total = matched_users['User_Count'].sum()
+
+        if user_total > 0:
+            combo_user_coverage[combo_set] = user_total
+
+# === STEP 5: Convert results to DataFrame and sort ===
+results_df = pd.DataFrame([
+    {'App_Combination': tuple(combo), 'Users_Covered': count}
+    for combo, count in combo_user_coverage.items()
+])
+
+results_df = results_df.sort_values(by='Users_Covered', ascending=False)
+
+# Save result to CSV
+results_df.to_csv("top_license_saving_combinations.csv", index=False)
+
+print("✅ Done! Check 'top_license_saving_combinations.csv' for your top app combinations.")
