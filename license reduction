@@ -4,14 +4,16 @@ from collections import defaultdict
 import time
 
 # === CONFIG ===
-excel_file = "your_file.xlsx"  # Replace this with your actual file
+excel_file = "your_file.xlsx"  # Replace with your actual file
 user_col = "User"
 app_col = "Application name"
 min_app_set_size = 6
 max_app_set_size = 10
 min_coverage_percent = 30
 max_output_rows = 10
+output_file = "top_6to10_app_combinations_with_users.xlsx"
 
+# === STEP 1: Load data ===
 print("Step 1: Loading data from Excel...")
 start_time = time.time()
 
@@ -23,21 +25,21 @@ print(f"  Loaded {len(df)} records")
 print(f"  Unique users: {df['User'].nunique()}")
 print(f"  Unique applications: {df['Application'].nunique()}")
 
-# === STEP 2: Group users by app sets ===
+# === STEP 2: Group by app sets ===
 print("Step 2: Grouping users by app usage sets...")
 user_app_sets = df.groupby('User')['Application'].apply(lambda apps: frozenset(apps)).reset_index()
 user_app_sets['App_Set'] = user_app_sets['Application']
 user_app_sets.drop(columns='Application', inplace=True)
 
-# === STEP 3: Count how many users use each exact app set ===
-print("Step 3: Counting users for each exact app set...")
+# === STEP 3: Count per app set ===
+print("Step 3: Counting users for each unique app set...")
 app_set_counts = user_app_sets.groupby('App_Set').size().reset_index(name='User_Count')
 total_users = user_app_sets['User'].nunique()
 print(f"  Found {len(app_set_counts)} unique app sets")
 
-# === STEP 4: Finding best combinations of 6 to 10 apps ===
-print("Step 4: Finding app set unions (6 to 10 apps)...")
-candidate_combos = defaultdict(int)
+# === STEP 4: Analyze combinations ===
+print("Step 4: Evaluating app set unions (6 to 10 apps)...")
+candidate_combos = []
 unique_app_sets = list(app_set_counts['App_Set'])
 
 combo_attempts = 0
@@ -50,12 +52,18 @@ for i in range(len(unique_app_sets)):
         combo_attempts += 1
 
         if min_app_set_size <= union_size <= max_app_set_size:
-            covered_users = app_set_counts[app_set_counts['App_Set'].apply(lambda x: x.issubset(union_set))]
-            user_count = covered_users['User_Count'].sum()
+            matching_users = user_app_sets[user_app_sets['App_Set'].apply(lambda x: x.issubset(union_set))]
+            user_count = matching_users['User'].nunique()
             coverage = 100 * user_count / total_users
 
             if coverage >= min_coverage_percent:
-                candidate_combos[frozenset(union_set)] = user_count
+                candidate_combos.append({
+                    'App_Combination': ', '.join(sorted(union_set)),
+                    'Apps_Count': len(union_set),
+                    'Users_Covered': user_count,
+                    'Coverage_%': round(coverage, 2),
+                    'Users_List': ', '.join(sorted(matching_users['User'].unique()))
+                })
                 retained_combos += 1
 
     if i % 100 == 0:
@@ -64,21 +72,14 @@ for i in range(len(unique_app_sets)):
 print(f"  Total combo attempts: {combo_attempts}")
 print(f"  Retained top combinations: {retained_combos}")
 
-# === STEP 5: Prepare output ===
-print("Step 5: Writing top combinations to file...")
+# === STEP 5: Write to Excel ===
+print("Step 5: Saving to Excel...")
 
-results_df = pd.DataFrame([
-    {
-        'App_Combination': tuple(sorted(combo)),
-        'Apps_Count': len(combo),
-        'Users_Covered': count,
-        'Coverage_%': round(100 * count / total_users, 2)
-    }
-    for combo, count in candidate_combos.items()
-])
-
+results_df = pd.DataFrame(candidate_combos)
 results_df = results_df.sort_values(by='Users_Covered', ascending=False).head(max_output_rows)
-results_df.to_csv("top_6to10_app_combinations.csv", index=False)
 
-print("✅ Done! Output saved to 'top_6to10_app_combinations.csv'")
+with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+    results_df.to_excel(writer, index=False, sheet_name='Top App Sets')
+
+print(f"✅ Done! Results saved to '{output_file}'")
 print(f"⏱️ Total time: {round(time.time() - start_time, 2)} seconds")
