@@ -1,0 +1,109 @@
+import pandas as pd
+import time
+
+# === CONFIGURATION ===
+input_file = "your_input_file.xlsx"  # Replace with your Excel file
+output_file = "5_Wave_Migration_Plan.xlsx"
+user_col = "User"
+app_col = "Application name"
+min_app_size = 10
+max_app_size = 20
+max_waves = 5
+
+print("\nStep 1: Loading data...")
+df = pd.read_excel(input_file, usecols=lambda x: x.strip().lower() in [user_col.lower(), app_col.lower()])
+df.columns = ["User", "Application"]
+df = df.drop_duplicates()
+
+total_users = df["User"].nunique()
+print(f"  Records: {len(df)}, Unique Users: {total_users}, Unique Apps: {df['Application'].nunique()}")
+
+# === Function to find best app combination based on exclusive users ===
+def find_best_app_combo(user_df, min_apps, max_apps):
+    user_app_sets = user_df.groupby("User")["Application"].apply(frozenset).reset_index()
+    user_app_sets['App_Set'] = user_app_sets['Application']
+    user_app_sets.drop(columns='Application', inplace=True)
+
+    app_set_counts = user_app_sets.groupby("App_Set").size().reset_index(name="User_Count")
+    unique_sets = list(app_set_counts["App_Set"])
+
+    best_combo, best_users, max_users = None, [], 0
+    checked = 0
+    loop_limit = 100000  # safety limit
+
+    for i in range(len(unique_sets)):
+        for j in range(i, len(unique_sets)):
+            union_apps = unique_sets[i].union(unique_sets[j])
+            if not (min_apps <= len(union_apps) <= max_apps):
+                continue
+
+            matched_users = user_app_sets[user_app_sets["App_Set"].apply(lambda x: x.issubset(union_apps))]
+            users = list(matched_users["User"].unique())
+
+            if len(users) > max_users:
+                best_combo = union_apps
+                best_users = users
+                max_users = len(users)
+
+            checked += 1
+            if checked >= loop_limit:
+                print("  [Loop Limit Hit] Breaking early for performance.")
+                return best_combo, best_users
+    return best_combo, best_users
+
+# === MAIN WAVE LOOP ===
+wave_summaries = []
+remaining_df = df.copy()
+start_time = time.time()
+
+for wave_num in range(1, max_waves + 1):
+    print(f"\n[INFO] Starting Wave {wave_num}...")
+
+    if wave_num < max_waves:
+        best_combo, best_users = find_best_app_combo(remaining_df, min_app_size, max_app_size)
+        if not best_combo or not best_users:
+            print(f"[WARN] No valid combination found for Wave {wave_num}.")
+            break
+
+        apps_used = sorted(best_combo)
+        users_covered = len(best_users)
+        apps_count = len(apps_used)
+        coverage_pct = round(100 * users_covered / total_users, 2)
+
+        print(f"[INFO] Wave {wave_num}: {users_covered} users covered with {apps_count} apps ({coverage_pct}%).")
+
+        wave_summaries.append({
+            "Wave": f"Wave_{wave_num}",
+            "App_Combination": ", ".join(apps_used),
+            "Apps_Count": apps_count,
+            "Users_Covered": users_covered,
+            "Coverage_%": coverage_pct,
+            "Users_List": ", ".join(sorted(best_users))
+        })
+
+        # Remove covered users and apps for next wave
+        remaining_df = remaining_df[~remaining_df["User"].isin(best_users)]
+        remaining_df = remaining_df[~remaining_df["Application"].isin(best_combo)]
+    else:
+        # Final Wave 5: Catch-all
+        final_users = sorted(remaining_df["User"].unique())
+        final_apps = sorted(remaining_df["Application"].unique())
+
+        print(f"[INFO] Wave 5: Remaining users = {len(final_users)}, apps = {len(final_apps)}")
+        wave_summaries.append({
+            "Wave": f"Wave_{wave_num}",
+            "App_Combination": ", ".join(final_apps),
+            "Apps_Count": len(final_apps),
+            "Users_Covered": len(final_users),
+            "Coverage_%": round(100 * len(final_users) / total_users, 2),
+            "Users_List": ", ".join(final_users)
+        })
+
+# === EXPORT TO EXCEL ===
+print("\n[INFO] Exporting results to Excel...")
+with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+    for wave in wave_summaries:
+        pd.DataFrame([wave]).to_excel(writer, index=False, sheet_name=wave["Wave"])
+
+print(f"\n✅ Done! Migration plan saved to '{output_file}'")
+print(f"⏱️ Total Execution Time: {round(time.time() - start_time, 2)} seconds")
